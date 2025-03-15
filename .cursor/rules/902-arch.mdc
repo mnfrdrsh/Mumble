@@ -1,0 +1,48 @@
+---
+description: Architecture Documentation Format
+globs: 
+alwaysApply: false
+---
+ <!-- Cursor Auto Rule: Architecture Documentation Format -->
+<!-- Rule version: 1.0.0 -->
+<!-- This rule provides guidelines for formatting architecture documentation -->
+
+# Architecture Documentation Format
+
+When working with any file that has 'architecture', 'arch', or 'design' in the filename, format the document according to the following guidelines:
+
+## Overview
+- Provide a high-level summary of the architecture
+- Include a system context diagram
+- List key architectural principles and patterns
+
+## Component Architecture
+- Document major components and their responsibilities
+- Define interfaces between components
+- Describe data flows and dependencies
+
+## Technical Decisions
+- Document key technical decisions with rationales
+- Include alternatives considered
+- Provide decision contexts and constraints
+
+## Data Model
+- Describe core entities and relationships
+- Include schema information or ER diagrams
+- Document data flow and storage strategies
+
+## Non-Functional Requirements
+- Security considerations
+- Scalability approach
+- Performance targets
+- Reliability and resilience patterns
+
+## Implementation Notes
+- Technology stack details
+- Development environment setup
+- Build and deployment pipeline
+
+## Future Considerations
+- Known limitations
+- Evolution path
+- Technical debt items

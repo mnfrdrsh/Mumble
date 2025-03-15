@@ -1,0 +1,42 @@
+---
+description: User Story Format
+globs: 
+alwaysApply: false
+---
+ <!-- Cursor Auto Rule: User Story Format -->
+<!-- Rule version: 1.0.0 -->
+<!-- This rule provides guidelines for formatting user stories -->
+
+# User Story Format
+
+When working with any file that has 'story', 'user story', or 'feature' in the filename, format the document according to the following guidelines:
+
+## Story Title
+- Start with a descriptive title
+- Use a consistent ID or reference number
+- Include story priority or MoSCoW rating
+
+## User Story Format
+- As a [role]
+- I want to [capability]
+- So that [benefit/value]
+
+## Acceptance Criteria
+- Use the Given/When/Then format
+- Be specific and testable
+- Cover happy paths and edge cases
+
+## Additional Information
+- Include technical notes if applicable
+- Add UI/UX mockups or references
+- Document dependencies on other stories
+
+## Estimation
+- Story points or time estimate
+- Complexity rating
+- Risk factors
+
+## Implementation Notes
+- Technical approach considerations
+- Potential challenges
+- Testing strategies
