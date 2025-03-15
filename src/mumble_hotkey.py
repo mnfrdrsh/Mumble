@@ -13,6 +13,9 @@ import speech_recognition as sr
 import keyboard
 import pyperclip
 import pyautogui
+from PIL import Image  # For the system tray icon
+import pystray
+from pystray import MenuItem as item
 
 # Configure pyautogui for safety and performance
 pyautogui.FAILSAFE = True  # Move mouse to upper-left corner to abort
@@ -47,9 +50,9 @@ class MumbleHotkey:
         # Load configuration
         self.config = self.load_config()
         
-        # Configure hotkeys from config
-        self.start_hotkey = self.config.get('hotkeys', 'start_hotkey', fallback='ctrl+space')
-        self.stop_key = self.config.get('hotkeys', 'stop_key', fallback='space')
+        # Configure hotkeys
+        self.start_hotkey = 'ctrl+alt'
+        self.stop_key = None
         
         # Sound settings
         self.enable_sounds = self.config.getboolean('sound', 'enable_sounds', fallback=True)
@@ -61,10 +64,8 @@ class MumbleHotkey:
         # Behavior settings
         self.max_recording_time = self.config.getint('behavior', 'max_recording_time', fallback=60)
         
-        # Platform-specific configurations
-        if PLATFORM == "darwin" and self.start_hotkey == "ctrl+space":  # macOS
-            self.start_hotkey = "command+space"
-            print("Note: On macOS, using Command+Space instead of Ctrl+Space")
+        # Initialize system tray icon
+        self.setup_tray()
         
         # Print welcome message
         self.print_welcome()
@@ -136,30 +137,83 @@ class MumbleHotkey:
             # If sound fails, just pass
             pass
     
+    def setup_tray(self):
+        """Set up the system tray icon"""
+        # Create a simple square image for the icon
+        image = Image.new('RGB', (64, 64), color='green')
+        
+        # Create the system tray icon
+        menu = (
+            item('Status: Ready', lambda: None, enabled=False),
+            item('Exit', self.exit_app)
+        )
+        
+        self.tray_icon = pystray.Icon(
+            "mumble_hotkey",
+            image,
+            "Mumble Hotkey",
+            menu
+        )
+        
+        # Start the icon in a separate thread
+        threading.Thread(target=self.tray_icon.run, daemon=True).start()
+    
+    def update_tray_status(self, is_recording):
+        """Update the system tray icon status"""
+        if is_recording:
+            # Create red icon for recording
+            image = Image.new('RGB', (64, 64), color='red')
+            self.tray_icon.icon = image
+            self.tray_icon.menu = (
+                item('Status: Recording...', lambda: None, enabled=False),
+                item('Exit', self.exit_app)
+            )
+        else:
+            # Create green icon for ready
+            image = Image.new('RGB', (64, 64), color='green')
+            self.tray_icon.icon = image
+            self.tray_icon.menu = (
+                item('Status: Ready', lambda: None, enabled=False),
+                item('Exit', self.exit_app)
+            )
+    
+    def exit_app(self):
+        """Clean exit of the application"""
+        self.should_exit = True
+        self.tray_icon.stop()
+    
     def start_recording(self):
         """Start the speech recognition process"""
         if not self.is_recording:
             self.is_recording = True
+            self.update_tray_status(True)
             self.recording_start_time = time.time()
             print("\nStarting recording... Speak now!")
             
             # Play start sound
             self.play_sound(self.start_frequency, self.start_duration)
             
-            try:
-                with sr.Microphone() as source:
-                    # Adjust for ambient noise
-                    self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
-                    # Listen to the microphone
-                    self.audio = self.recognizer.listen(source, phrase_time_limit=None)
-            except Exception as e:
-                print(f"Error initializing microphone: {e}")
-                self.is_recording = False
+            # Start a new thread for audio processing
+            threading.Thread(target=self.process_audio).start()
+    
+    def process_audio(self):
+        """Capture and process audio in a separate thread"""
+        try:
+            with sr.Microphone() as source:
+                # Adjust for ambient noise
+                self.recognizer.adjust_for_ambient_noise(source, duration=0.5)
+                # Listen to the microphone
+                self.audio = self.recognizer.listen(source, phrase_time_limit=None)
+                self.stop_recording_and_insert()  # Process after capturing
+        except Exception as e:
+            print(f"Error initializing microphone: {e}")
+            self.is_recording = False
     
     def stop_recording_and_insert(self):
         """Stop recording, transcribe audio, and insert text"""
         if self.is_recording and self.audio:
             self.is_recording = False
+            self.update_tray_status(False)
             print("Stopping recording... Processing speech...")
             
             # Play stop sound
@@ -216,24 +270,17 @@ class MumbleHotkey:
         """Main loop to monitor hotkeys and manage recording state"""
         try:
             while not self.should_exit:
-                # Check if hotkey is held to start recording
-                if keyboard.is_pressed(self.start_hotkey) and not self.is_recording:
+                # Check if both Ctrl and Alt are held to start recording
+                if keyboard.is_pressed("ctrl") and keyboard.is_pressed("alt") and not self.is_recording:
                     self.start_recording()
                     # Small delay to avoid multiple triggers
                     time.sleep(0.2)
                 
-                # Check if Space is pressed (without modifier) to stop recording
-                elif (self.is_recording and 
-                      keyboard.is_pressed(self.stop_key) and 
-                      not keyboard.is_pressed("ctrl") and
-                      not (PLATFORM == "darwin" and keyboard.is_pressed("command"))):
+                # Check if either Ctrl or Alt is released to stop recording
+                elif self.is_recording and (not keyboard.is_pressed("ctrl") or not keyboard.is_pressed("alt")):
                     self.stop_recording_and_insert()
                     # Small delay to avoid multiple triggers
                     time.sleep(0.2)
-                
-                # Check if maximum recording time has been reached
-                elif self.is_recording and self.check_max_recording_time():
-                    self.stop_recording_and_insert()
                 
                 # Small delay to reduce CPU usage
                 time.sleep(0.01)
