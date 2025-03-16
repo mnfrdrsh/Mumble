@@ -1,2 +1,15 @@
 # Private individual user cursor rules
 .cursor/rules/_*.mdc 
+
+# Ignore the @mumbl directory
+@mumbl/
+
+# Ignore the main.py file
+main.py 
+
+# Ignore the run.py file
+run.py
+
+
+
+
