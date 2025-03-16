@@ -1,9 +1,9 @@
-#Mumble
+# Mumble
 
 
 Mumble is a lightweight, open-source speech-to-text application for desktop that transcribes audio from your microphone and inserts it into any active text field using simple hotkeys. Inspired by tools like Wispr Flow, Mumble features a minimal listening bar with a squiggly line animation to provide visual feedback during recording.
 
-##Features
+## Features
 
 -   Speech-to-Text: Transcribes spoken words into text using Google Speech Recognition.
 
@@ -19,9 +19,10 @@ Mumble is a lightweight, open-source speech-to-text application for desktop that
 
 -   Platform Support: Works on Windows, macOS, and Linux (with some setup considerations).
 
-#Installation
 
-##Prerequisites
+# Installation
+
+## Prerequisites
 
 -   Python: Version 3.6 or later ([Download](https://www.python.org/downloads/)).
 
@@ -29,7 +30,7 @@ Mumble is a lightweight, open-source speech-to-text application for desktop that
 
 -   Internet Connection: Required for Google Speech Recognition.
 
-##Steps
+## Steps
 
 1.  Clone the Repository:
 
@@ -84,7 +85,8 @@ Mumble is a lightweight, open-source speech-to-text application for desktop that
         sudo python mumble.py
         ```
 
-##Usage
+
+## Usage
 
 1.  Run the Application:
 
@@ -114,7 +116,8 @@ Mumble is a lightweight, open-source speech-to-text application for desktop that
 
     -   "Hello from Mumble" appears in Notepad.
 
-Configuration
+
+## Configuration
 
 Mumble uses a config.ini file in the project directory for customization. If it doesn't exist, it's created with defaults on first run.
 
@@ -141,7 +144,7 @@ bar_position_x = 50
 bar_position_y = 50
 ```
 
-Options
+## Options
 
 -   hotkeys:
 
@@ -165,7 +168,9 @@ Options
 
 Edit config.ini to customize these settings before running the app.
 
-Troubleshooting
+
+
+## Troubleshooting
 
 -   Hotkeys Not Working:
 
@@ -195,7 +200,9 @@ Troubleshooting
 
 For additional help, check the console output or open an issue on GitHub.
 
-Contributing
+
+
+# Contributing
 
 We welcome contributions! Follow these steps:
 
@@ -226,13 +233,15 @@ We welcome contributions! Follow these steps:
 
 See CONTRIBUTING.md for more details (create this file if needed).
 
-License
+
+# License
 
 Mumble is licensed under the MIT License (LICENSE). Feel free to use, modify, and distribute it as you see fit.
 
 * * * * *
 
-Acknowledgments
+
+# Acknowledgments
 
 -   Built with [SpeechRecognition](https://pypi.org/project/SpeechRecognition/) and [PyAudio](https://pypi.org/project/PyAudio/).
 
