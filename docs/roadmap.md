@@ -13,17 +13,30 @@ This document outlines the planned development path for the Mumble speech-to-tex
 ## Version 1.1 (Short-term)
 
 ### Planned Features
-- [ ] Add application icon and branding
-- [ ] Implement basic settings (font size, colors)
-- [ ] Add word count and character count
-- [ ] Improve error messages and user feedback
+- [x] Add application icon and branding
+- [x] Implement basic settings (font size, colors)
+- [x] Add word count and character count
+- [x] Improve error messages and user feedback
 - [ ] Add basic text formatting options
+- [x] Add configurable hotkeys
+- [x] Enhance system tray with additional options
+- [x] Improve console window with status bar and text selection
+- [x] Add command-line arguments for configuration
+- [x] Add versioning information
 
 ### Technical Improvements
 - [ ] Refactor code for better maintainability
 - [ ] Add more comprehensive unit tests
 - [ ] Improve microphone selection and configuration
-- [ ] Add logging for better debugging
+- [x] Add logging for better debugging
+- [x] Optimize hotkey monitoring using event-driven approach
+- [x] Improve animation efficiency
+- [x] Optimize audio processing and text insertion
+- [ ] Separate concerns into focused classes (Audio, GUI, Hotkey, Config)
+- [ ] Use context managers for resources
+- [ ] Centralize configuration management
+- [ ] Improve cross-platform support
+- [x] Enhance error handling for speech recognition
 
 ## Version 1.2 (Mid-term)
 

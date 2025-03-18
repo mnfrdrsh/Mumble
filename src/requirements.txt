@@ -1,0 +1,15 @@
+speech_recognition>=3.8.1
+pillow>=8.0.0
+pytest>=6.0.0
+keyboard>=0.13.5
+pyperclip>=1.8.2
+pyautogui>=0.9.53
+pystray>=0.19.4
+ttkthemes>=3.2.2
+psutil>=5.8.0
+memory_profiler>=0.60.0
+pytest-cov>=2.12.0
+black>=21.5b2  # for code formatting
+flake8>=3.9.2  # for linting
+pywin32>=305; platform_system == "Windows"  # for Windows shortcuts
+winshell>=0.6; platform_system == "Windows"  # for Windows shortcuts 
