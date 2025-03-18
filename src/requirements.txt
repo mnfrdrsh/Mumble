@@ -1,5 +1,5 @@
 speech_recognition>=3.8.1
-pillow>=8.0.0
+pillow>=10.3.0
 pytest>=6.0.0
 keyboard>=0.13.5
 pyperclip>=1.8.2
