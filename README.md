@@ -29,8 +29,8 @@ A suite of complementary applications for efficient note-taking and speech-to-te
 
 1. **Clone the Repository**:
    ```bash
-   git clone <your-repo>
-   cd <your-repo>
+   git clone https://github.com/mnfrdrsh/Mumble.git
+   cd Mumble
    ```
 
 2. **Install Dependencies**:
