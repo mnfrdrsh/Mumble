@@ -38,15 +38,15 @@ class MumbleQuick:
             
             # Set up hotkey - using a more specific combination
             try:
-                # Try primary hotkey first (Ctrl+Alt+M)
-                keyboard.add_hotkey('ctrl+alt+m', self.toggle_listening, suppress=True)
-                self.logger.info("Primary hotkey (Ctrl+Alt+M) registered successfully")
+                # Try primary hotkey first (just Ctrl+Alt instead of Ctrl+Alt+M)
+                keyboard.add_hotkey('ctrl+alt', self.toggle_listening, suppress=True)
+                self.logger.info("Primary hotkey (Ctrl+Alt) registered successfully")
             except Exception as primary_error:
                 self.logger.warning(f"Failed to register primary hotkey: {primary_error}")
                 try:
-                    # Fallback to secondary hotkey (Ctrl+Shift+M)
-                    keyboard.add_hotkey('ctrl+shift+m', self.toggle_listening, suppress=True)
-                    self.logger.info("Secondary hotkey (Ctrl+Shift+M) registered successfully")
+                    # Fallback to secondary hotkey (Ctrl+Shift)
+                    keyboard.add_hotkey('ctrl+shift', self.toggle_listening, suppress=True)
+                    self.logger.info("Secondary hotkey (Ctrl+Shift) registered successfully")
                 except Exception as secondary_error:
                     self.logger.error(f"Failed to register secondary hotkey: {secondary_error}")
                     self.logger.error(traceback.format_exc())
@@ -123,7 +123,7 @@ class MumbleQuick:
         try:
             self.logger.info("Starting Mumble Quick application")
             print("Mumble Quick is running.")
-            print("Press Ctrl+Alt+M (or Ctrl+Shift+M) to start/stop speech recognition.")
+            print("Press Ctrl+Alt (or Ctrl+Shift) to start/stop speech recognition.")
             print("Check the logs directory for detailed information.")
             self.ui.mainloop()
         except KeyboardInterrupt:
