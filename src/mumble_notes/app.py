@@ -11,7 +11,7 @@ import logging
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from shared.speech_recognition import SpeechRecognizer
+from shared.adaptive_speech import create_adaptive_speech_recognizer
 from shared.logging import setup_logging
 from ui.editor import RichTextEditor
 from ui.document_manager import DocumentManager
@@ -120,7 +120,7 @@ class MumbleNotes:
         
     def setup_speech_recognition(self):
         """Set up speech recognition"""
-        self.recognizer = SpeechRecognizer()
+        self.recognizer = create_adaptive_speech_recognizer()
         self._is_dictating = False
         
     def start_dictation(self):

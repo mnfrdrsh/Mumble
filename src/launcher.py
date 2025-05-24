@@ -88,6 +88,26 @@ class MumbleLauncher:
         )
         self.quick_status.pack(pady=5)
         
+        # Information labels
+        info_frame = ttk.Frame(self.main_frame)
+        info_frame.pack(pady=10, fill='x')
+        
+        notes_info = ttk.Label(
+            info_frame,
+            text="• Mumble Notes: Opens a full editor window",
+            font=("Arial", 8),
+            foreground="blue"
+        )
+        notes_info.pack(anchor='w')
+        
+        quick_info = ttk.Label(
+            info_frame,
+            text="• Mumble Quick: Runs hidden, press Ctrl+Alt to use",
+            font=("Arial", 8),
+            foreground="blue"
+        )
+        quick_info.pack(anchor='w')
+        
         # Stop button
         self.stop_button = ttk.Button(
             self.main_frame,
@@ -138,21 +158,13 @@ class MumbleLauncher:
             script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 
                                       "mumble_notes", "app.py")
             
-            # Start the process without showing a console window
-            startupinfo = None
-            if sys.platform == "win32":
-                startupinfo = subprocess.STARTUPINFO()
-                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                startupinfo.wShowWindow = 0  # SW_HIDE
-            
             # Set environment variable to help with dictation issues
             env = os.environ.copy()
             env["MUMBLE_DICTATION_TIMEOUT"] = "10"  # 10 second timeout for dictation
             
+            # Start Mumble Notes with visible window (no CREATE_NO_WINDOW flag)
             self.notes_process = subprocess.Popen(
                 [sys.executable, script_path],
-                startupinfo=startupinfo,
-                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
                 env=env
             )
             
@@ -187,7 +199,7 @@ class MumbleLauncher:
             script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 
                                       "mumble_quick", "app.py")
             
-            # Start the process without showing a console window
+            # Start the process without showing a console window (Quick should run hidden)
             startupinfo = None
             if sys.platform == "win32":
                 startupinfo = subprocess.STARTUPINFO()

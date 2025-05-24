@@ -1,5 +1,6 @@
 """
-Main application module for Mumble Quick
+Main application module for Mumble Quick using PyQt5
+Modern Qt-based replacement for the Tkinter implementation
 """
 
 import os
@@ -11,28 +12,46 @@ from threading import Thread
 import logging
 import traceback
 
+from PyQt5.QtWidgets import QApplication, QWidget
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QObject
+
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared.adaptive_speech import create_adaptive_speech_recognizer
 from shared.logging import setup_logging
-from ui.pill_bar import WaveformBar
+from ui.pill_bar_qt5 import WaveformBar
 
-class MumbleQuick:
-    """Main application class for Mumble Quick"""
+
+class MumbleQuickQt(QObject):
+    """Main application class for Mumble Quick using PyQt5"""
+    
+    # Signal for transcription received
+    transcription_received = pyqtSignal(str)
     
     def __init__(self):
         """Initialize the application"""
+        super().__init__()
         try:
             self.logger = setup_logging('quick')
-            self.logger.info("Initializing Mumble Quick...")
+            self.logger.info("Initializing Mumble Quick (PyQt5)...")
+            
+            # Initialize Qt Application if not exists
+            self.app = QApplication.instance()
+            if self.app is None:
+                self.app = QApplication(sys.argv)
+                self.app.setQuitOnLastWindowClosed(False)  # Keep app running when UI hidden
             
             self.recognizer = create_adaptive_speech_recognizer()
             self.logger.info("Adaptive speech recognizer initialized")
             
             self.ui = WaveformBar()
-            self.ui.withdraw()  # Hide window initially
-            self.logger.info("UI initialized and hidden")
+            self.ui.close_requested.connect(self.stop_listening)
+            self.ui.hide()  # Hide window initially
+            self.logger.info("PyQt5 UI initialized and hidden")
+            
+            # Connect transcription signal
+            self.transcription_received.connect(self.insert_text)
             
             self.recognition_thread = None
             
@@ -58,11 +77,13 @@ class MumbleQuick:
             raise
     
     def on_hotkey_pressed(self):
-        """Handle hotkey press - schedule UI update in main thread"""
+        """Handle hotkey press - toggle listening state"""
         try:
-            self.logger.info("Hotkey pressed! Scheduling toggle_listening...")
-            # Schedule the toggle_listening call in the main UI thread
-            self.ui.after(0, self.toggle_listening)
+            self.logger.info("Hotkey pressed! Toggling listening...")
+            
+            # Use QTimer to ensure we're in the main Qt thread
+            QTimer.singleShot(0, self.toggle_listening)
+            
         except Exception as e:
             self.logger.error(f"Error in on_hotkey_pressed: {e}")
             self.logger.error(traceback.format_exc())
@@ -88,7 +109,7 @@ class MumbleQuick:
                 return
                 
             # Show UI
-            self.ui.show()  # This now includes deiconify and other visibility settings
+            self.ui.show()
             self.logger.info("UI shown")
             
             # Start recognition in a separate thread
@@ -116,12 +137,12 @@ class MumbleQuick:
             self.logger.error(traceback.format_exc())
             
     def on_transcription(self, text: str):
-        """Handle transcribed text"""
+        """Handle transcribed text - emit signal to main thread"""
         try:
             if text:
                 self.logger.info(f"Received transcription: {text}")
-                # Schedule text insertion in main thread
-                self.ui.after(0, lambda: self.insert_text(text))
+                # Emit signal to be handled in main Qt thread
+                self.transcription_received.emit(text)
         except Exception as e:
             self.logger.error(f"Error in on_transcription: {e}")
             self.logger.error(traceback.format_exc())
@@ -140,39 +161,50 @@ class MumbleQuick:
     def run(self):
         """Run the application"""
         try:
-            self.logger.info("Starting Mumble Quick application")
-            print("Mumble Quick is running.")
+            self.logger.info("Starting Mumble Quick (PyQt5) application")
+            print("Mumble Quick (PyQt5) is running.")
             print("Press Ctrl+Alt (or Ctrl+Shift) to start/stop speech recognition.")
             print("Check the logs directory for detailed information.")
             
-            # Check UI status periodically
-            self.check_ui_status()
+            # Set up periodic status check
+            self.status_timer = QTimer()
+            self.status_timer.timeout.connect(self.check_status)
+            self.status_timer.start(5000)  # Check every 5 seconds
             
-            self.ui.mainloop()
+            # Run the Qt event loop
+            return self.app.exec_()
+            
         except KeyboardInterrupt:
             self.logger.info("Received keyboard interrupt")
+            return 0
         except Exception as e:
             self.logger.error(f"Error in main loop: {e}")
             self.logger.error(traceback.format_exc())
+            return 1
         finally:
-            self.logger.info("Shutting down Mumble Quick")
+            self.logger.info("Shutting down Mumble Quick (PyQt5)")
             self.stop_listening()
     
-    def check_ui_status(self):
-        """Periodically check UI status for debugging"""
+    def check_status(self):
+        """Periodically check status for debugging"""
         try:
             # This method helps us debug UI state
-            self.logger.debug(f"UI state check - is_listening: {getattr(self.ui, 'is_listening', 'unknown')}")
-            # Schedule next check
-            self.ui.after(5000, self.check_ui_status)  # Check every 5 seconds
+            self.logger.debug(f"Status check - is_listening: {self.recognizer.is_listening}")
         except Exception as e:
-            self.logger.error(f"Error in check_ui_status: {e}")
-            
-if __name__ == '__main__':
+            self.logger.error(f"Error in check_status: {e}")
+
+
+def main():
+    """Main function to run the application"""
     try:
-        app = MumbleQuick()
-        app.run()
+        app = MumbleQuickQt()
+        exit_code = app.run()
+        sys.exit(exit_code)
     except Exception as e:
         print(f"Fatal error: {e}")
         print("Check the logs directory for detailed information.")
-        sys.exit(1) 
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main() 

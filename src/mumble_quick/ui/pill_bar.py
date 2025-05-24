@@ -18,19 +18,24 @@ class WaveformBar(tk.Tk):
             self.logger = logging.getLogger('mumble.quick.ui')
             self.logger.info("Initializing WaveformBar")
             
-            # Configure window
+            # Configure window with improved settings for visibility
             self.overrideredirect(True)  # Remove window decorations
             self.attributes('-topmost', True)  # Keep window on top
             self.configure(bg='#2C2C2C')
             
-            # Set window size (120x20 pixels)
-            self.geometry('120x20')
+            # IMPROVED: Set window size and ensure it's visible
+            self.width = 120
+            self.height = 20
+            self.geometry(f'{self.width}x{self.height}')
+            
+            # IMPROVED: Force window to be visible initially (hidden later)
+            self.withdraw()  # Start hidden, will be shown on demand
             
             # Create canvas for waveform
             self.canvas = tk.Canvas(
                 self,
-                width=120,
-                height=20,
+                width=self.width,
+                height=self.height,
                 bg='#2C2C2C',
                 highlightthickness=0
             )
@@ -64,12 +69,12 @@ class WaveformBar(tk.Tk):
                 radius = 10
                 points = [
                     radius, 0,  # Top left
-                    120 - radius, 0,  # Top right
-                    120, radius,  # Right top
-                    120, 20 - radius,  # Right bottom
-                    120 - radius, 20,  # Bottom right
-                    radius, 20,  # Bottom left
-                    0, 20 - radius,  # Left bottom
+                    self.width - radius, 0,  # Top right
+                    self.width, radius,  # Right top
+                    self.width, self.height - radius,  # Right bottom
+                    self.width - radius, self.height,  # Bottom right
+                    radius, self.height,  # Bottom left
+                    0, self.height - radius,  # Left bottom
                     0, radius  # Left top
                 ]
                 return points
@@ -98,7 +103,7 @@ class WaveformBar(tk.Tk):
             height=size,
             bg='#2C2C2C'
         )
-        close_frame.place(x=120-size-padding, y=padding)
+        close_frame.place(x=self.width-size-padding, y=padding)
         
         # Create close button
         close_btn = tk.Label(
@@ -129,24 +134,48 @@ class WaveformBar(tk.Tk):
             self.geometry(f'+{self.winfo_x() + dx}+{self.winfo_y() + dy}')
             
     def show(self):
-        """Show the bar with animation"""
+        """Show the bar with animation - IMPROVED VERSION"""
         try:
-            self.logger.info("Showing WaveformBar")
+            self.logger.info("Showing WaveformBar - Starting show process")
             
-            # Position window at bottom center of screen
+            # IMPROVED: Get screen dimensions more reliably
+            self.update_idletasks()  # Ensure window is ready
             screen_width = self.winfo_screenwidth()
             screen_height = self.winfo_screenheight()
-            x = (screen_width - 120) // 2
-            y = screen_height - 100  # 100 pixels from bottom
             
-            self.geometry(f'120x20+{x}+{y}')
-            self.deiconify()
-            self.lift()  # Bring window to front
-            self.attributes('-topmost', True)  # Ensure window stays on top
-            self.update()  # Force window update
+            # IMPROVED: Calculate position with better bounds checking
+            x = max(0, (screen_width - self.width) // 2)
+            y = max(0, screen_height - 150)  # Higher up for better visibility
             
+            self.logger.info(f"Screen size: {screen_width}x{screen_height}")
+            self.logger.info(f"Calculated position: ({x}, {y})")
+            
+            # IMPROVED: Set geometry first, then show
+            self.geometry(f'{self.width}x{self.height}+{x}+{y}')
+            
+            # IMPROVED: Force window to be visible with multiple methods
+            self.deiconify()  # Make window visible
+            self.update()     # Process pending events
+            self.lift()       # Bring to front
+            self.focus_force()  # Force focus (may help with visibility)
+            self.attributes('-topmost', True)  # Ensure it stays on top
+            
+            # IMPROVED: Additional visibility checks
+            if self.winfo_viewable():
+                self.logger.info("Window is viewable")
+            else:
+                self.logger.warning("Window is NOT viewable - forcing visibility")
+                self.tkraise()  # Alternative method to bring to front
+            
+            # Start animation
             self.start_animation()
-            self.logger.info(f"WaveformBar shown at position ({x}, {y})")
+            
+            # IMPROVED: Log final position for debugging
+            actual_x = self.winfo_x()
+            actual_y = self.winfo_y()
+            self.logger.info(f"WaveformBar shown at actual position ({actual_x}, {actual_y})")
+            self.logger.info(f"Window dimensions: {self.winfo_width()}x{self.winfo_height()}")
+            
         except Exception as e:
             self.logger.error(f"Error showing WaveformBar: {e}")
             self.logger.error(traceback.format_exc())
@@ -200,13 +229,13 @@ class WaveformBar(tk.Tk):
             self.canvas.delete('waveform')
             
             # Draw new waveform
-            x_step = 120 / (len(self.points) - 1)
+            x_step = self.width / (len(self.points) - 1)
             coords = []
             
             # Create smooth curve through points
             for i in range(len(self.points)):
                 x = i * x_step
-                y = 10 + self.points[i]  # Center line at 10 (half of 20px height)
+                y = (self.height / 2) + self.points[i]  # Center line
                 coords.extend([x, y])
                 
             if len(coords) >= 4:
@@ -223,4 +252,24 @@ class WaveformBar(tk.Tk):
             
         except Exception as e:
             self.logger.error(f"Error in waveform animation: {e}")
-            self.logger.error(traceback.format_exc()) 
+            self.logger.error(traceback.format_exc())
+
+
+# Test the waveform bar if run directly
+if __name__ == '__main__':
+    import sys
+    
+    # Create and test the waveform bar
+    bar = WaveformBar()
+    print("WaveformBar created - showing...")
+    bar.show()
+    print("WaveformBar shown - starting animation...")
+    bar.start_animation()
+    
+    # Keep it running for testing
+    print("Press Ctrl+C to exit or close the window")
+    try:
+        bar.mainloop()
+    except KeyboardInterrupt:
+        print("Exiting...")
+        bar.destroy() 

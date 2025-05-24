@@ -1,0 +1,13 @@
+SpeechRecognition==3.10.0
+sounddevice==0.4.6
+soundfile==0.12.1
+pydub==0.25.1
+numpy==1.24.3
+keyboard==0.13.5
+pyperclip==1.8.2
+pyautogui==0.9.53
+Pillow==10.3.0
+cairosvg==2.7.1
+# Alternative audio backends
+pycaw==20220416  # Windows volume control
+pywin32>=227; sys_platform == "win32"  # Windows audio APIs 
