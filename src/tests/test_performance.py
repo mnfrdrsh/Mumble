@@ -14,7 +14,9 @@ from functools import wraps
 
 from mumble_notes.app import MumbleNotes
 from mumble_quick.app import MumbleQuick
-from shared.speech_recognition import SpeechRecognizer
+# from shared.speech_recognition import SpeechRecognizer # Old import
+from shared.adaptive_speech import create_adaptive_speech_recognizer # New import
+from unittest.mock import MagicMock # Added for mocking recognizer behavior
 
 def measure_time(func):
     """Decorator to measure execution time"""
@@ -103,20 +105,47 @@ class PerformanceBenchmarks:
     
     @measure_time
     def test_speech_recognition_performance(self, quick_app):
-        """Measure speech recognition performance"""
-        recognizer = SpeechRecognizer()
+        """Measure speech recognition related responsiveness in quick_app."""
+        # The original test instantiated a local SpeechRecognizer and patched it,
+        # which didn't test the app's internal recognizer's performance.
+        # This revised test will measure the responsiveness of quick_app.on_speech_recognition()
+        # when the internal speech recognizer (AdaptiveSpeechRecognizer) processes a command quickly.
+
+        mock_text_result = "test performance string"
+
+        def mock_start_listening_for_performance(callback_fn, *args, **kwargs):
+            # Simulate quick recognition by calling the callback almost immediately
+            if callback_fn:
+                callback_fn(mock_text_result)
         
-        # Measure recognition time for 10 samples
+        # Replace the app's internal speech_recognizer's start_listening method
+        # This assumes quick_app has an attribute 'speech_recognizer' that is an
+        # instance of AdaptiveSpeechRecognizer or a compatible object.
+        original_recognizer = quick_app.speech_recognizer
+        
+        # Create a MagicMock for the app's recognizer instance
+        mock_app_recognizer = MagicMock()
+        mock_app_recognizer.start_listening = MagicMock(side_effect=mock_start_listening_for_performance)
+        quick_app.speech_recognizer = mock_app_recognizer
+
         times = []
-        for _ in range(10):
+        for _ in range(10): # Number of samples
             start_time = time.time()
-            with patch.object(recognizer, 'recognize_speech', return_value="test"):
-                quick_app.on_speech_recognition()
+            # This call should now use the mocked start_listening
+            result = quick_app.on_speech_recognition() 
             times.append(time.time() - start_time)
+            # We can also assert that the result from on_speech_recognition matches,
+            # if on_speech_recognition is designed to return the recognized text.
+            assert result == mock_text_result 
         
         avg_time = sum(times) / len(times)
-        print(f"Average speech recognition time: {avg_time:.4f} seconds")
-        assert avg_time < 0.1  # Should process in under 0.1 seconds
+        print(f"Average 'on_speech_recognition' (with mocked recognizer) call time: {avg_time:.4f} seconds")
+        # The assertion threshold might need adjustment based on what on_speech_recognition does.
+        # This is testing the app's processing overhead more than the recognizer itself.
+        assert avg_time < 0.01  # Adjusted threshold: app logic should be very fast with mock.
+
+        # Restore original recognizer if necessary for other tests or cleanup
+        quick_app.speech_recognizer = original_recognizer
     
     @measure_time
     def test_document_operations(self, notes_app):
