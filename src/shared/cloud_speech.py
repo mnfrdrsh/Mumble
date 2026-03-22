@@ -24,7 +24,7 @@ import subprocess # Used by WindowsSpeechRecognizer
 from typing import Optional, Callable, Dict, Any
 import abc # For AbstractSpeechRecognizer
 
-from src.shared.recognizer_interface import AbstractSpeechRecognizer
+from .recognizer_interface import AbstractSpeechRecognizer
 
 class CloudSpeechRecognizer(AbstractSpeechRecognizer):
     """
@@ -100,6 +100,7 @@ class WebAPIRecognizer(CloudSpeechRecognizer):
         self.html_file_path: Optional[str] = None
         self._monitor_thread: Optional[threading.Thread] = None
         self._callback: Optional[Callable[[str], None]] = None
+        self._stop_requested = threading.Event()
         # self._last_processed_timestamp: float = 0.0 # This was not used.
         self._setup_web_interface()
         
@@ -220,6 +221,7 @@ class WebAPIRecognizer(CloudSpeechRecognizer):
         self.logger.info(f"Starting WebAPIRecognizer. Opening {self.html_file_path} in browser.")
         self._is_listening_state = True
         self._callback = callback
+        self._stop_requested.clear()
         # self._last_processed_timestamp = time.time() * 1000 # Not used
 
         try:
@@ -349,29 +351,36 @@ class WindowsSpeechRecognizer(CloudSpeechRecognizer):
         
         powershell_script = '''
 Add-Type -AssemblyName System.Speech
-$recognizer = New-Object System.Speech.Recognition.SpeechRecognitionEngine
+
 try {
+    $culture = [System.Globalization.CultureInfo]::CurrentUICulture
+    $recognizer = New-Object System.Speech.Recognition.SpeechRecognitionEngine($culture)
     $recognizer.SetInputToDefaultAudioDevice()
+    $recognizer.InitialSilenceTimeout = [TimeSpan]::FromSeconds(10)
+    $recognizer.BabbleTimeout = [TimeSpan]::FromSeconds(5)
+    $recognizer.EndSilenceTimeout = [TimeSpan]::FromMilliseconds(800)
+    $recognizer.EndSilenceTimeoutAmbiguous = [TimeSpan]::FromMilliseconds(1200)
 } catch {
-    Write-Error "Failed to set input to default audio device: $($_.Exception.Message)"
+    Write-Error "Failed to initialize Windows speech recognition: $($_.Exception.Message)"
     exit 1
 }
-$grammar = New-Object System.Speech.Recognition.DictationGrammar
-$recognizer.LoadGrammar($grammar)
 
-$handler = {
-    param($sender, $e)
-    # Output recognized text to stdout
-    Write-Output $e.Result.Text
-    # Flush stdout to ensure Python receives it immediately
-    [Console]::Out.Flush()
+try {
+    $grammar = New-Object System.Speech.Recognition.DictationGrammar
+    $recognizer.LoadGrammar($grammar)
+
+    while ($true) {
+        $result = $recognizer.Recognize()
+        if ($null -ne $result -and -not [string]::IsNullOrWhiteSpace($result.Text)) {
+            Write-Output $result.Text
+            [Console]::Out.Flush()
+            break
+        }
+    }
+} catch {
+    Write-Error "Windows speech recognition failed: $($_.Exception.Message)"
+    exit 1
 }
-Register-ObjectEvent -InputObject $recognizer -EventName SpeechRecognized -Action $handler -MessageData "SpeechRecognized"
-
-$recognizer.RecognizeAsync([System.Speech.Recognition.RecognizeMode]::Multiple)
-Write-Host "Windows Speech Recognition started. Press Enter in the console running Mumble to stop."
-# Keep the script running. Python will terminate the process to stop.
-while ($true) { Start-Sleep -Seconds 1 }
         '''
         
         self._listen_thread = threading.Thread(
@@ -393,7 +402,7 @@ while ($true) { Start-Sleep -Seconds 1 }
             self.logger.info(f"Executing PowerShell script: {self._temp_script_path}")
             # Using CREATE_NO_WINDOW to prevent PowerShell window from popping up
             creationflags = 0x08000000 if sys.platform == "win32" else 0 
-            self._process = subprocess.Popen(
+            process = subprocess.Popen(
                 ['powershell', '-ExecutionPolicy', 'Bypass', '-File', self._temp_script_path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -402,27 +411,28 @@ while ($true) { Start-Sleep -Seconds 1 }
                 errors='replace',
                 creationflags=creationflags
             )
+            self._process = process
             
             # Monitor stdout for recognized speech
-            if self._process and self._process.stdout:
-                for line in iter(self._process.stdout.readline, ''):
-                    if not self._is_listening_state: # Check if stop was requested
+            if process.stdout:
+                for line in iter(process.stdout.readline, ''):
+                    if not self._is_listening_state or self._stop_requested.is_set():
                         break
                     line_stripped = line.strip()
-                    if line_stripped and "Windows Speech Recognition started." not in line_stripped:
+                    if line_stripped:
                         self.logger.info(f"Recognized (Windows): {line_stripped}")
                         callback(line_stripped)
-                self._process.stdout.close()
+                process.stdout.close()
 
             # Check for errors after process finishes or if loop breaks
-            if self._process:
-                return_code = self._process.wait()
-                if return_code != 0:
-                    stderr_output = self._process.stderr.read() if self._process.stderr else ""
-                    self.logger.error(
-                        f"PowerShell script exited with error code {return_code}. Stderr: {stderr_output.strip()}"
-                    )
-                self._process.stderr.close() if self._process.stderr else None
+            return_code = process.wait()
+            if return_code != 0 and not self._stop_requested.is_set():
+                stderr_output = process.stderr.read() if process.stderr else ""
+                self.logger.error(
+                    f"PowerShell script exited with error code {return_code}. Stderr: {stderr_output.strip()}"
+                )
+            if process.stderr:
+                process.stderr.close()
 
 
         except FileNotFoundError:
@@ -435,8 +445,9 @@ while ($true) { Start-Sleep -Seconds 1 }
             self.logger.info("Windows PowerShell recognition loop ended.")
             if self._process: # Ensure process is terminated if it's still running
                 try:
-                    self._process.terminate()
-                    self._process.wait(timeout=1.0)
+                    if self._process.poll() is None:
+                        self._process.terminate()
+                        self._process.wait(timeout=1.0)
                 except subprocess.TimeoutExpired:
                     self._process.kill()
                 except Exception: # pylint: disable=broad-except

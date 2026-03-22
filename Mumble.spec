@@ -1,12 +1,24 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from pathlib import Path
+
+
+project_root = Path.cwd()
+src_root = project_root / "src"
+assets_root = src_root / "assets"
+icon_path = assets_root / "mumble_icon.png"
+
 
 a = Analysis(
-    ['src\\mumble_gui.py'],
-    pathex=[],
+    ["run_modern_mumble.py"],
+    pathex=[str(src_root)],
     binaries=[],
-    datas=[('C:\\Users\\JP\\Desktop\\Mumble\\src\\assets', 'assets')],
-    hiddenimports=[],
+    datas=[(str(assets_root), "assets")],
+    hiddenimports=[
+        "ui_redesign.main_app",
+        "shared.adaptive_speech",
+        "shared.cloud_speech",
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -22,7 +34,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='Mumble',
+    name="Mumble",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -35,5 +47,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['C:\\Users\\JP\\Desktop\\Mumble\\src\\assets\\mumble_icon.png'],
+    icon=[str(icon_path)] if icon_path.exists() else None,
 )

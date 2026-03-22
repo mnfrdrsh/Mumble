@@ -35,7 +35,7 @@ except ImportError:
     SPEECH_RECOGNITION_AVAILABLE = False
 
 
-from src.shared.base_audio_recognizer import BaseAudioRecognizer
+from .base_audio_recognizer import BaseAudioRecognizer
 
 class SoundDeviceRecognizer(BaseAudioRecognizer):
     """

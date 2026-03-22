@@ -1,6 +1,5 @@
 """
-Centralized styling system for the modern Mumble UI
-Dark theme with blue/purple accents and glassmorphism effects
+Centralized styling system for the modern Mumble UI.
 """
 
 # Color Palette
@@ -36,7 +35,7 @@ COLORS = {
 
 # Font configuration
 FONTS = {
-    'family': 'Inter, Segoe UI, Roboto, sans-serif',
+    'family': '"Segoe UI"',
     'sizes': {
         'small': '11px',
         'medium': '13px',
@@ -56,7 +55,6 @@ CARD_STYLE = f"""
     background: {COLORS['card_bg']};
     border: 1px solid {COLORS['card_border']};
     border-radius: 16px;
-    backdrop-filter: blur(20px);
 """
 
 BUTTON_BASE = f"""
@@ -85,7 +83,6 @@ LAUNCHER_STYLE = f"""
     
     QFrame#card {{
         {CARD_STYLE}
-        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
     }}
     
     QLabel#header {{
@@ -108,7 +105,6 @@ LAUNCHER_STYLE = f"""
     }}
     QLineEdit#search:focus {{
         border: 2px solid {COLORS['accent_blue']};
-        box-shadow: 0 0 20px {COLORS['focus_glow']};
     }}
     QLineEdit#search::placeholder {{
         color: {COLORS['text_muted']};
@@ -171,7 +167,6 @@ LISTENING_STYLE = f"""
     
     QFrame#card {{
         {CARD_STYLE}
-        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6);
     }}
     
     QLabel#listening_header {{
@@ -198,7 +193,6 @@ NOTES_STYLE = f"""
     
     QFrame#card {{
         {CARD_STYLE}
-        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
     }}
     
     QLabel#notes_header {{
@@ -215,7 +209,6 @@ NOTES_STYLE = f"""
         color: {COLORS['text_primary']};
         font-family: {FONTS['family']};
         font-size: {FONTS['sizes']['medium']};
-        line-height: 1.6;
         padding: 20px;
         selection-background-color: {COLORS['accent_blue']};
     }}

@@ -202,8 +202,8 @@ def test_clipboard_interaction(quick_app):
     mock_recognizer_instance.start_listening.assert_called_once()
     
     # Verify text was copied to clipboard
-        import pyperclip
-        assert pyperclip.paste() == test_text
+    import pyperclip
+    assert pyperclip.paste() == test_text
 
 def test_document_persistence(notes_app):
     """Test document persistence and recovery"""

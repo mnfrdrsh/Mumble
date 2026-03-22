@@ -8,7 +8,7 @@ import threading
 import time
 from typing import Optional, Callable
 
-from src.shared.base_audio_recognizer import BaseAudioRecognizer
+from .base_audio_recognizer import BaseAudioRecognizer
 
 class PyAudioRecognizer(BaseAudioRecognizer):
     """
@@ -20,6 +20,13 @@ class PyAudioRecognizer(BaseAudioRecognizer):
 
     def __init__(self):
         """Initialize the PyAudioRecognizer."""
+        try:
+            import pyaudio  # noqa: F401
+        except ImportError as exc:
+            raise ImportError(
+                "PyAudio is not installed. Install PyAudio or use another speech backend."
+            ) from exc
+
         super().__init__(logger_name='mumble.pyaudio_speech')
         # self._is_listening_state is inherited and managed by superclass
         # self.dictation_timeout is inherited from superclass

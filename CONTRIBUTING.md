@@ -72,7 +72,7 @@ We welcome feature suggestions! Please create an issue on GitHub with:
 
 Run the tests with:
 ```bash
-python -m unittest discover tests
+pytest src/mumble_notes/tests/
 ```
 
 ## Documentation

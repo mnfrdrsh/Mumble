@@ -11,9 +11,9 @@ import logging
 import threading # For checking thread interactions
 
 # Classes to test
-from src.shared.pyaudio_recognizer import PyAudioRecognizer
-from src.shared.sounddevice_recognizer import SoundDeviceRecognizer
-from src.shared.base_audio_recognizer import BaseAudioRecognizer # For direct test if needed
+from shared.pyaudio_recognizer import PyAudioRecognizer
+from shared.sounddevice_recognizer import SoundDeviceRecognizer
+from shared.base_audio_recognizer import BaseAudioRecognizer # For direct test if needed
 
 # Disable logging for tests unless specifically needed
 # logging.disable(logging.CRITICAL) # Keep logs for debugging for now
@@ -35,7 +35,7 @@ def sounddevice_recognizer_fixture():
     """Fixture for SoundDeviceRecognizer."""
     with patch.dict(os.environ, {}, clear=True): # Clean env
         # Mock SOUNDDEVICE_AVAILABLE to be true for most tests of this fixture
-        with patch('src.shared.sounddevice_recognizer.SOUNDDEVICE_AVAILABLE', True):
+        with patch('shared.sounddevice_recognizer.SOUNDDEVICE_AVAILABLE', True):
             # Mock sounddevice.query_devices to prevent actual hardware queries
             with patch('sounddevice.query_devices', MagicMock(return_value={'name': 'mock_device', 'max_input_channels': 1})):
                  recognizer = SoundDeviceRecognizer()
@@ -89,12 +89,12 @@ def test_sounddevice_recognizer_initialization(sounddevice_recognizer_fixture):
 
 @patch.dict(os.environ, {"MUMBLE_DICTATION_TIMEOUT": "7"})
 def test_sounddevice_recognizer_dictation_timeout_from_env():
-    with patch('src.shared.sounddevice_recognizer.SOUNDDEVICE_AVAILABLE', True):
+    with patch('shared.sounddevice_recognizer.SOUNDDEVICE_AVAILABLE', True):
         with patch('sounddevice.query_devices', MagicMock(return_value={'name': 'mock_device', 'max_input_channels': 1})):
             recognizer = SoundDeviceRecognizer()
     assert recognizer.dictation_timeout == 7
     
-@patch('src.shared.sounddevice_recognizer.SOUNDDEVICE_AVAILABLE', False)
+@patch('shared.sounddevice_recognizer.SOUNDDEVICE_AVAILABLE', False)
 def test_sounddevice_recognizer_import_error_if_not_available():
     with pytest.raises(ImportError) as excinfo:
         SoundDeviceRecognizer()
@@ -123,7 +123,7 @@ def test_sounddevice_recognizer_get_status(sounddevice_recognizer_fixture):
 
 # --- start_listening() and stop_listening() Tests ---
 
-@patch('src.shared.pyaudio_recognizer.sr.Microphone') # Path to Microphone within the pyaudio_recognizer module
+@patch('shared.pyaudio_recognizer.sr.Microphone') # Path to Microphone within the pyaudio_recognizer module
 @patch('threading.Thread') # Path to the global Thread class
 def test_pyaudio_start_listening(mock_thread_class, mock_microphone_class, pyaudio_recognizer_fixture):
     recognizer = pyaudio_recognizer_fixture
@@ -186,7 +186,7 @@ def test_pyaudio_stop_listening(pyaudio_recognizer_fixture):
         # The main thing is it doesn't crash and state remains not listening.
         assert not recognizer.is_listening
 
-@patch('src.shared.sounddevice_recognizer.sd') # Mock the 'sd' module used by SoundDeviceRecognizer
+@patch('shared.sounddevice_recognizer.sd') # Mock the 'sd' module used by SoundDeviceRecognizer
 @patch('threading.Thread')
 def test_sounddevice_start_listening(mock_thread_class, mock_sd_module, sounddevice_recognizer_fixture):
     recognizer = sounddevice_recognizer_fixture
@@ -229,7 +229,7 @@ def test_sounddevice_stop_listening(sounddevice_recognizer_fixture):
 
 # --- Transcription Tests (testing _recognize_audio_with_google via subclasses) ---
 
-@patch('src.shared.pyaudio_recognizer.sr.Microphone') # Mocks the class sr.Microphone
+@patch('shared.pyaudio_recognizer.sr.Microphone') # Mocks the class sr.Microphone
 def test_pyaudio_speech_transcription_success(mock_microphone_class, pyaudio_recognizer_fixture):
     recognizer = pyaudio_recognizer_fixture
     mock_mic_instance = MagicMock() # This is the instance returned by sr.Microphone()
@@ -259,7 +259,7 @@ def test_pyaudio_speech_transcription_success(mock_microphone_class, pyaudio_rec
     callback_fn.assert_called_once_with(expected_text)
 
 
-@patch('src.shared.pyaudio_recognizer.sr.Microphone')
+@patch('shared.pyaudio_recognizer.sr.Microphone')
 def test_pyaudio_speech_transcription_unknown_value_error(mock_microphone_class, pyaudio_recognizer_fixture):
     recognizer = pyaudio_recognizer_fixture
     mock_mic_instance = MagicMock()
@@ -278,7 +278,7 @@ def test_pyaudio_speech_transcription_unknown_value_error(mock_microphone_class,
     callback_fn.assert_not_called()
 
 
-@patch('src.shared.pyaudio_recognizer.sr.Microphone')
+@patch('shared.pyaudio_recognizer.sr.Microphone')
 def test_pyaudio_speech_transcription_request_error(mock_microphone_class, pyaudio_recognizer_fixture):
     recognizer = pyaudio_recognizer_fixture
     mock_mic_instance = MagicMock()
@@ -300,11 +300,11 @@ def test_pyaudio_speech_transcription_request_error(mock_microphone_class, pyaud
         "Could not request results from Google Speech Recognition service; API request failed"
     )
 
-@patch('src.shared.sounddevice_recognizer.sd')
-@patch('src.shared.sounddevice_recognizer.sf')
-@patch('src.shared.sounddevice_recognizer.tempfile.NamedTemporaryFile')
-@patch('src.shared.sounddevice_recognizer.os.unlink')
-@patch('src.shared.sounddevice_recognizer.sr.AudioFile')
+@patch('shared.sounddevice_recognizer.sd')
+@patch('shared.sounddevice_recognizer.sf')
+@patch('shared.sounddevice_recognizer.tempfile.NamedTemporaryFile')
+@patch('shared.sounddevice_recognizer.os.unlink')
+@patch('shared.sounddevice_recognizer.sr.AudioFile')
 def test_sounddevice_speech_transcription_success(
     mock_audio_file_class, mock_os_unlink, mock_tempfile, mock_sf_module, mock_sd_module,
     sounddevice_recognizer_fixture
@@ -348,11 +348,11 @@ def test_sounddevice_speech_transcription_success(
     mock_os_unlink.assert_called_once_with(mock_temp_wav_file.name)
 
 
-@patch('src.shared.sounddevice_recognizer.sd')
-@patch('src.shared.sounddevice_recognizer.sf')
-@patch('src.shared.sounddevice_recognizer.tempfile.NamedTemporaryFile')
-@patch('src.shared.sounddevice_recognizer.os.unlink')
-@patch('src.shared.sounddevice_recognizer.sr.AudioFile')
+@patch('shared.sounddevice_recognizer.sd')
+@patch('shared.sounddevice_recognizer.sf')
+@patch('shared.sounddevice_recognizer.tempfile.NamedTemporaryFile')
+@patch('shared.sounddevice_recognizer.os.unlink')
+@patch('shared.sounddevice_recognizer.sr.AudioFile')
 def test_sounddevice_speech_transcription_unknown_value_error(
     mock_audio_file_class, mock_os_unlink, mock_tempfile, mock_sf_module, mock_sd_module,
     sounddevice_recognizer_fixture
@@ -379,11 +379,11 @@ def test_sounddevice_speech_transcription_unknown_value_error(
     mock_os_unlink.assert_called_once_with(mock_temp_wav_file.name) # Ensure cleanup still happens
 
 
-@patch('src.shared.sounddevice_recognizer.sd')
-@patch('src.shared.sounddevice_recognizer.sf')
-@patch('src.shared.sounddevice_recognizer.tempfile.NamedTemporaryFile')
-@patch('src.shared.sounddevice_recognizer.os.unlink')
-@patch('src.shared.sounddevice_recognizer.sr.AudioFile')
+@patch('shared.sounddevice_recognizer.sd')
+@patch('shared.sounddevice_recognizer.sf')
+@patch('shared.sounddevice_recognizer.tempfile.NamedTemporaryFile')
+@patch('shared.sounddevice_recognizer.os.unlink')
+@patch('shared.sounddevice_recognizer.sr.AudioFile')
 def test_sounddevice_speech_transcription_request_error(
     mock_audio_file_class, mock_os_unlink, mock_tempfile, mock_sf_module, mock_sd_module,
     sounddevice_recognizer_fixture
@@ -416,7 +416,7 @@ def test_sounddevice_speech_transcription_request_error(
 
 # --- Noise Handling Test (PyAudio specific) ---
 
-@patch('src.shared.pyaudio_recognizer.sr.Microphone')
+@patch('shared.pyaudio_recognizer.sr.Microphone')
 def test_pyaudio_noise_handling(mock_microphone_class, pyaudio_recognizer_fixture):
     recognizer = pyaudio_recognizer_fixture
     mock_mic_instance = MagicMock()

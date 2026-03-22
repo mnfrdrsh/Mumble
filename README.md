@@ -1,168 +1,88 @@
 # Mumble
 
-A suite of complementary applications for efficient note-taking and speech-to-text input, featuring Mumble Notes for comprehensive note management and Mumble Quick for instant dictation anywhere.
+Mumble is a desktop speech-to-text app built around the Qt redesign in `src/ui_redesign` and the shared speech layer in `src/shared`.
 
-## Features
+`run_modern_mumble.py` is the primary entrypoint. The older Tk applications in `src/launcher.py`, `src/launcher_enhanced.py`, `src/launcher_qt5.py`, `src/mumble_notes`, and `src/mumble_quick` remain in the repo as migration reference only.
 
-### Mumble Notes
-- **Rich Text Editor** with comprehensive formatting options
-- **Document Organization** with tags and categories
-- **Speech-to-Text Integration** for efficient note-taking
-- **Theme Customization** for comfortable viewing
-- **Auto-save Functionality** to prevent data loss
+## Current product shape
 
-### Mumble Quick
-- **Minimal Floating Interface** with animated waveform
-- **Global Hotkey Activation** (Ctrl+Alt+M or Ctrl+Shift+M)
-- **Direct Text Insertion** into any active application
-- **Visual Feedback** with smooth animations
-- **Exclusive Mode** operation with Mumble Notes
+- Command palette and system tray app built with PyQt5
+- Quick dictation mode for sending text into the active app with a deterministic `sounddevice` recording path
+- Notes editor that now persists the working note between launches and can export timestamped note snapshots
+- Shared adaptive speech backends in `src/shared`
 
-## Quick Start
+## Quick start
 
 ### Prerequisites
-- Python 3.8 or higher ([Download](https://www.python.org/downloads/))
-- Working microphone (built-in or external)
-- Internet connection for speech recognition
 
-### Installation
+- Python 3.10 or newer recommended
+- Windows is the primary supported environment right now
+- A working microphone
 
-1. **Clone the Repository**:
-   ```bash
-   git clone https://github.com/mnfrdrsh/Mumble.git
-   cd Mumble
-   ```
+### Install
 
-2. **Install Dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Platform-Specific Setup**:
-   - **Windows**: No additional setup needed
-   - **macOS**: Grant accessibility permissions in System Preferences
-   - **Linux**: Install portaudio:
-     ```bash
-     sudo apt-get install portaudio19-dev  # Debian/Ubuntu
-     ```
-
-### Running the Applications
-
-1. **Using the Unified Launcher**:
-   ```bash
-   python src/launcher.py
-   ```
-   - Launch either Mumble Notes or Mumble Quick
-   - Only one application can run at a time
-   - Monitor application status through the launcher
-
-2. **Windows Quick Launch** (No Command Prompt):
-   - Double-click `launch_mumble.vbs` in the root directory
-   - Or create a desktop shortcut using `create_shortcut.bat`
-
-## Configuration
-
-### Application Settings
-Both applications use JSON configuration files:
-- Mumble Notes: `src/mumble_notes/config/notes_config.json`
-- Mumble Quick: `src/mumble_quick/config/quick_config.json`
-
-### Environment Variables
-- `MUMBLE_DICTATION_TIMEOUT`: Maximum dictation phrase duration in seconds (default: 10)
-
-### Configurable Options
-
-#### Mumble Notes
-- Editor preferences
-- Theme settings
-- Document management options
-- Speech recognition settings
-- Auto-save interval
-
-#### Mumble Quick
-- Hotkey combinations
-- UI appearance
-- Speech recognition settings
-- Animation settings
-
-## Project Structure
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+pip install -e .
 ```
-/
-├── launch_mumble.vbs       # VBS launcher (no command prompt)
-├── create_shortcut.bat     # Desktop shortcut creator
-└── src/
-    ├── launcher.py         # Unified launcher
-    ├── mumble_notes/       # Full-featured note-taking app
-    ├── mumble_quick/       # Quick dictation tool
-    ├── shared/             # Shared components
-    ├── logs/               # Application logs
-    └── tests/              # Test suites
+
+If microphone capture fails on Windows, verify that `sounddevice` installed cleanly and that the active input device is available to Python.
+
+### Run
+
+```bash
+python run_modern_mumble.py
+```
+
+Or, after installing the package entrypoint:
+
+```bash
+mumble
+```
+
+When the app starts:
+
+- `Ctrl+Shift+Space` opens the command palette
+- `Ctrl+Alt+Space` starts/stops Quick mode dictation
+- Use the tray icon to reopen Notes or exit the app
+
+## Notes persistence
+
+- Working notes are persisted in the app data directory used by Qt
+- Exported notes are written to `~/Documents/Mumble Notes`
+- Set `MUMBLE_DATA_DIR` to override the working-note storage root
+- Set `MUMBLE_NOTES_EXPORT_DIR` to override the export directory
+
+## Project layout
+
+```text
+run_modern_mumble.py     Primary launcher
+src/ui_redesign/         Canonical Qt product UI
+src/shared/              Shared speech, config, and logging modules
+src/mumble_notes/        Legacy Tk reference
+src/mumble_quick/        Legacy Tk reference
+docs/installation.md     Detailed install notes
 ```
 
 ## Development
 
-### Running Tests
+Run the focused migration checks:
+
 ```bash
-# Run all tests
-pytest src/tests/
-
-# Run specific test suite
-pytest src/tests/test_integration.py
-pytest src/tests/test_performance.py
-
-# Run with coverage
-pytest --cov=src tests/
+pytest tests/test_mumble.py
 ```
 
-### Performance Metrics
-- Startup time
-- Memory usage
-- Speech recognition accuracy
-- Document operations speed
-- UI responsiveness
+The full historical pytest suite is not the release gate yet; some legacy tests still need cleanup as the Qt migration continues.
+
+## Packaging
+
+- `setup.py` is aligned to the Qt app entrypoint
+- `Mumble.spec` targets `run_modern_mumble.py`
 
 ## Troubleshooting
 
-### Common Issues
-
-1. **Application Won't Start**
-   - Verify Python 3.8+ installation: `python --version`
-   - Check dependencies: `pip list`
-   - Verify config files exist
-   - Check logs in `src/logs/`
-
-2. **Speech Recognition Issues**
-   - Verify microphone connection and permissions
-   - Check internet connectivity
-   - Try shorter `MUMBLE_DICTATION_TIMEOUT` if freezing occurs
-   - Review logs for error messages
-
-3. **UI or Display Issues**
-   - Check display scaling settings
-   - Verify theme configuration
-   - Ensure assets exist in `src/assets/`
-
-4. **Launcher Issues**
-   - Verify Python is in PATH
-   - Use VBS launcher for Windows Store Python
-   - Check logs for startup errors
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Implement your changes
-4. Add tests for new functionality
-5. Submit a pull request
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- Speech recognition powered by [SpeechRecognition](https://pypi.org/project/SpeechRecognition/)
-- UI components built with tkinter and ttkthemes
-- Inspired by tools like Wispr Flow
+- If the app fails to import Qt modules, verify `PyQt5` is installed in the active environment
+- If quick dictation starts but no speech is captured, check microphone permissions and available speech backend dependencies
+- If global hotkeys do not register, run the app in a normal desktop session with keyboard access enabled
