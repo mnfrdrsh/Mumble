@@ -6,14 +6,15 @@ Beautiful notes editor with modern UI and glassmorphism design
 import sys
 import os
 import logging
+from pathlib import Path
 from typing import Optional
 from datetime import datetime
 
 from PyQt5.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QFrame, 
-    QLabel, QPlainTextEdit, QPushButton, QScrollArea
+    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QFrame,
+    QLabel, QPlainTextEdit, QPushButton
 )
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QPropertyAnimation, QEasingCurve
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QStandardPaths
 from PyQt5.QtGui import QFont, QTextCursor, QKeySequence
 import pyperclip
 
@@ -27,14 +28,20 @@ class NotesEditor(QWidget):
     note_saved = pyqtSignal(str)  # Emitted when note is saved
     note_copied = pyqtSignal(str)  # Emitted when note is copied
     editor_closed = pyqtSignal()  # Emitted when editor is closed
+    launcher_requested = pyqtSignal()  # Emitted when the user wants the palette
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, storage=None):
         super().__init__(parent)
         self.logger = logging.getLogger('mumble.ui.notes')
+        self.storage = storage or NotesStorage()
         
         # State
         self.current_note_text = ""
         self.is_modified = False
+        self._close_emitted = False
+        self.persist_timer = QTimer(self)
+        self.persist_timer.setSingleShot(True)
+        self.persist_timer.timeout.connect(self.persist_working_note)
         
         self.init_ui()
         self.setup_shortcuts()
@@ -43,14 +50,13 @@ class NotesEditor(QWidget):
         """Initialize the user interface"""
         # Window configuration
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
-        self.setAttribute(Qt.WA_TranslucentBackground)
         
         # Apply styling
         self.setStyleSheet(NOTES_STYLE)
         
         # Main layout
         main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setContentsMargins(24, 24, 24, 24)
         
         # Card container
         self.card = QFrame()
@@ -68,7 +74,7 @@ class NotesEditor(QWidget):
         header_layout.setSpacing(16)
         
         # App icon
-        app_icon = create_icon("📝", size=24, color=COLORS['accent_blue'])
+        app_icon = create_icon("M", size=24, color=COLORS['accent_blue'])
         header_layout.addWidget(app_icon)
         
         # Title
@@ -80,7 +86,7 @@ class NotesEditor(QWidget):
         header_layout.addStretch()
         
         # Options button (future feature)
-        options_btn = QPushButton("⋯")
+        options_btn = QPushButton("...")
         options_btn.setObjectName("close_button")
         options_btn.setFixedSize(32, 32)
         options_btn.setStyleSheet("""
@@ -101,7 +107,7 @@ class NotesEditor(QWidget):
         self.text_editor.textChanged.connect(self.on_text_changed)
         
         # Set up editor properties
-        font = QFont("Inter, Segoe UI, Roboto", 13)
+        font = QFont("Segoe UI", 13)
         font.setWeight(400)
         self.text_editor.setFont(font)
         
@@ -124,6 +130,13 @@ class NotesEditor(QWidget):
         self.copy_button.clicked.connect(self.copy_note)
         self.copy_button.setFixedHeight(44)
         buttons_layout.addWidget(self.copy_button)
+
+        # Launcher button
+        self.launcher_button = QPushButton("Launcher")
+        self.launcher_button.setObjectName("close_button")
+        self.launcher_button.clicked.connect(self.request_launcher)
+        self.launcher_button.setFixedHeight(44)
+        buttons_layout.addWidget(self.launcher_button)
         
         # Close button
         self.close_button = QPushButton("Close")
@@ -137,6 +150,7 @@ class NotesEditor(QWidget):
         # Add card to main layout
         main_layout.addWidget(self.card, alignment=Qt.AlignCenter)
         self.setLayout(main_layout)
+        self.setFixedSize(self.sizeHint())
         
         # Set initial focus
         self.text_editor.setFocus()
@@ -152,41 +166,48 @@ class NotesEditor(QWidget):
         """Handle text changes"""
         current_text = self.text_editor.toPlainText()
         self.is_modified = current_text != self.current_note_text
+        self.persist_timer.start(350)
         
         # Update save button appearance if needed
         if self.is_modified:
             self.save_button.setText("Save *")
         else:
             self.save_button.setText("Save")
+
+    def load_working_note(self) -> str:
+        """Load the persisted working note into the editor."""
+        text = self.storage.load_working_note()
+        if text:
+            self.set_text(text)
+        return text
+
+    def persist_working_note(self):
+        """Persist the current working note so it survives app restarts."""
+        text = self.text_editor.toPlainText()
+        try:
+            self.storage.save_working_note(text)
+        except Exception as e:
+            self.logger.error(f"Failed to persist working note: {e}")
     
     def save_note(self):
-        """Save the current note"""
-        text = self.text_editor.toPlainText().strip()
+        """Export the current note to a timestamped file."""
+        raw_text = self.text_editor.toPlainText()
+        text = raw_text.strip()
         
         if not text:
             self.logger.warning("Attempted to save empty note")
             return
         
         try:
-            # Create notes directory if it doesn't exist
-            notes_dir = os.path.expanduser("~/Documents/Mumble Notes")
-            os.makedirs(notes_dir, exist_ok=True)
+            filepath = self.storage.export_note(raw_text)
             
-            # Generate filename with timestamp
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"note_{timestamp}.txt"
-            filepath = os.path.join(notes_dir, filename)
-            
-            # Save file
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(text)
-            
-            self.current_note_text = text
+            self.current_note_text = raw_text
             self.is_modified = False
             self.save_button.setText("Save")
+            self.persist_working_note()
             
             self.logger.info(f"Note saved to {filepath}")
-            self.note_saved.emit(filepath)
+            self.note_saved.emit(str(filepath))
             
             # Show brief success feedback
             self.show_save_feedback()
@@ -215,14 +236,23 @@ class NotesEditor(QWidget):
     
     def close_editor(self):
         """Close the editor"""
-        # TODO: Add unsaved changes warning if needed
-        self.editor_closed.emit()
+        self.persist_pending_changes()
         self.close()
+
+    def request_launcher(self):
+        """Request that the command palette be shown."""
+        self.launcher_requested.emit()
+
+    def persist_pending_changes(self):
+        """Flush any queued persistence before closing or exporting."""
+        if self.persist_timer.isActive():
+            self.persist_timer.stop()
+        self.persist_working_note()
     
     def show_save_feedback(self):
         """Show brief visual feedback for save action"""
         original_text = self.save_button.text()
-        self.save_button.setText("Saved ✓")
+        self.save_button.setText("Saved")
         self.save_button.setStyleSheet("""
             QPushButton#save_button {
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #4caf50, stop:1 #66bb6a);
@@ -235,7 +265,7 @@ class NotesEditor(QWidget):
     def show_copy_feedback(self):
         """Show brief visual feedback for copy action"""
         original_text = self.copy_button.text()
-        self.copy_button.setText("Copied ✓")
+        self.copy_button.setText("Copied")
         self.copy_button.setStyleSheet("""
             QPushButton#copy_button {
                 background: rgba(33, 150, 243, 0.2);
@@ -272,10 +302,14 @@ class NotesEditor(QWidget):
     def append_text(self, text: str):
         """Append text to the editor"""
         current_text = self.text_editor.toPlainText()
+        cursor = self.text_editor.textCursor()
+        cursor.movePosition(QTextCursor.End)
+
         if current_text and not current_text.endswith('\n'):
-            text = '\n' + text
-        
-        self.text_editor.appendPlainText(text)
+            cursor.insertText('\n')
+
+        cursor.insertText(text)
+        self.text_editor.setTextCursor(cursor)
         self.text_editor.setFocus()
     
     def get_text(self) -> str:
@@ -304,25 +338,92 @@ class NotesEditor(QWidget):
             if event.buttons() == Qt.LeftButton:
                 self.move(event.globalPos() - self.drag_start_position)
 
+    def closeEvent(self, event):
+        """Persist note state and notify the manager on all close paths."""
+        self.persist_pending_changes()
+        if not self._close_emitted:
+            self._close_emitted = True
+            self.editor_closed.emit()
+        super().closeEvent(event)
+
+
+class NotesStorage:
+    """Filesystem-backed storage for the Qt notes experience."""
+
+    def __init__(self, base_dir: Optional[Path] = None, export_dir: Optional[Path] = None):
+        self.base_dir = Path(base_dir) if base_dir else self._default_base_dir()
+        self.working_note_path = self.base_dir / "working_note.txt"
+        self.export_dir = Path(export_dir) if export_dir else self._default_export_dir()
+
+    @staticmethod
+    def _default_base_dir() -> Path:
+        override_dir = os.getenv("MUMBLE_DATA_DIR")
+        if override_dir:
+            return Path(override_dir) / "notes"
+
+        app_data_dir = QStandardPaths.writableLocation(QStandardPaths.AppDataLocation)
+        if app_data_dir:
+            return Path(app_data_dir) / "notes"
+
+        return Path.home() / ".mumble" / "notes"
+
+    @staticmethod
+    def _default_export_dir() -> Path:
+        override_dir = os.getenv("MUMBLE_NOTES_EXPORT_DIR")
+        if override_dir:
+            return Path(override_dir)
+        return Path.home() / "Documents" / "Mumble Notes"
+
+    def load_working_note(self) -> str:
+        """Return the persisted working note, or an empty string if none exists."""
+        if not self.working_note_path.exists():
+            return ""
+        return self.working_note_path.read_text(encoding='utf-8')
+
+    def save_working_note(self, text: str) -> Path:
+        """Persist the current working note contents."""
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+        self.working_note_path.write_text(text, encoding='utf-8')
+        return self.working_note_path
+
+    def export_note(self, text: str) -> Path:
+        """Export the current note to a timestamped text file."""
+        self.export_dir.mkdir(parents=True, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filepath = self.export_dir / f"note_{timestamp}.txt"
+        counter = 1
+        while filepath.exists():
+            filepath = self.export_dir / f"note_{timestamp}_{counter}.txt"
+            counter += 1
+
+        filepath.write_text(text, encoding='utf-8')
+        return filepath
+
 
 class NotesManager:
     """Manager for the notes editor"""
     
-    def __init__(self):
+    def __init__(self, storage: Optional[NotesStorage] = None):
         self.logger = logging.getLogger('mumble.notes.manager')
+        self.storage = storage or NotesStorage()
         self.editor: Optional[NotesEditor] = None
         self.is_open = False
     
     def open_editor(self, initial_text: str = ""):
         """Open the notes editor"""
         if not self.is_open:
-            self.editor = NotesEditor()
+            self.editor = NotesEditor(storage=self.storage)
             self.editor.note_saved.connect(self.on_note_saved)
             self.editor.note_copied.connect(self.on_note_copied)
             self.editor.editor_closed.connect(self.on_editor_closed)
-            
+
+            restored_text = self.editor.load_working_note()
             if initial_text:
-                self.editor.set_text(initial_text)
+                if restored_text:
+                    self.editor.append_text(initial_text)
+                else:
+                    self.editor.set_text(initial_text)
             
             # Center on screen
             screen = QApplication.desktop().screenGeometry()
@@ -339,7 +440,6 @@ class NotesManager:
         """Close the notes editor"""
         if self.is_open and self.editor:
             self.editor.close()
-            self.on_editor_closed()
     
     def append_text(self, text: str):
         """Append text to the current editor (if open)"""

@@ -10,11 +10,12 @@ import logging
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from shared.adaptive_speech import create_adaptive_speech_recognizer
+from mumble_notes.speech_manager import SpeechManager
 from shared.logging import setup_logging
-from ui.editor import RichTextEditor
-from ui.document_manager import DocumentManager
+from .ui.editor import RichTextEditor
+from .ui.document_manager import DocumentManager
 
 class MumbleNotes:
     """Main application class for Mumble Notes"""
@@ -36,7 +37,7 @@ class MumbleNotes:
         
         # Initialize components
         self.setup_ui()
-        self.setup_speech_recognition()
+        self.speech_manager = SpeechManager(self.on_transcription)
         
     def setup_ui(self):
         """Set up the user interface"""
@@ -118,28 +119,18 @@ class MumbleNotes:
         
         self.root.config(menu=menubar)
         
-    def setup_speech_recognition(self):
-        """Set up speech recognition"""
-        self.recognizer = create_adaptive_speech_recognizer()
-        self._is_dictating = False
-        
+
     def start_dictation(self):
         """Start speech-to-text dictation"""
-        if not self._is_dictating:
-            self._is_dictating = True
-            self.recognizer.start_listening(self.on_transcription)
-            self.logger.info("Started dictation")
-            
+        self.speech_manager.start_dictation()
+
     def stop_dictation(self):
         """Stop speech-to-text dictation"""
-        if self._is_dictating:
-            self._is_dictating = False
-            self.recognizer.stop_listening()
-            self.logger.info("Stopped dictation")
-            
+        self.speech_manager.stop_dictation()
+
     def on_transcription(self, text: str):
         """Handle transcribed text"""
-        if text and self._is_dictating:
+        if text:
             self.editor.insert_text(text + " ")
             self.logger.info(f"Inserted text: {text}")
             

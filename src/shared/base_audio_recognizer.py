@@ -10,7 +10,7 @@ import threading
 from typing import Any, Callable, Dict
 # import abc # Not directly used by this class, only by its parent.
 
-from src.shared.recognizer_interface import AbstractSpeechRecognizer
+from .recognizer_interface import AbstractSpeechRecognizer
 
 class BaseAudioRecognizer(AbstractSpeechRecognizer):
     """

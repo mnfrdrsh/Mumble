@@ -1,116 +1,70 @@
-# Mumble Installation Guide
+# Installation
 
-This guide will help you install and run the Mumble speech-to-text application.
+This project now ships around the Qt application launched by `run_modern_mumble.py`.
 
-## Prerequisites
+## Supported path
 
-Before installing Mumble, ensure you have the following:
+- Primary environment: Windows desktop
+- Primary UI: `src/ui_redesign`
+- Shared runtime layer: `src/shared`
+- Legacy Tk applications are not the recommended install or launch path
 
-1. **Python 3.8 or higher**
-   - Download from [python.org](https://www.python.org/downloads/)
-   - Ensure Python is added to your PATH during installation
+## Setup
 
-2. **Working Microphone**
-   - Required for speech input
-   - Test that your microphone is working properly on your system
-
-3. **Internet Connection**
-   - Required for Google's Speech Recognition service
-
-## Installation Steps
-
-### 1. Clone or Download the Repository
+### 1. Create and activate a virtual environment
 
 ```bash
-git clone https://github.com/yourusername/mumble.git
-cd mumble
+python -m venv .venv
+.venv\Scripts\activate
 ```
 
-Or download and extract the ZIP file from the repository.
-
-### 2. Create a Virtual Environment (Optional but Recommended)
-
-#### On Windows:
-```bash
-python -m venv venv
-venv\Scripts\activate
-```
-
-#### On macOS/Linux:
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-
-### 3. Install Dependencies
+### 2. Install dependencies
 
 ```bash
 pip install -r requirements.txt
+pip install -e .
 ```
 
-#### Troubleshooting PyAudio Installation
+The modern Qt app uses `sounddevice` for Quick dictation, so a working Python microphone device is more important than PyAudio.
 
-If you encounter issues installing PyAudio:
+## Launch
 
-**On Windows:**
-```bash
-pip install pipwin
-pipwin install pyaudio
-```
-
-**On macOS:**
-```bash
-brew install portaudio
-pip install pyaudio
-```
-
-**On Ubuntu/Debian:**
-```bash
-sudo apt-get install python3-pyaudio
-```
-
-## Running the Application
-
-### Using the Launcher Script
+Start the product with:
 
 ```bash
-python run.py
+python run_modern_mumble.py
 ```
 
-### Running Directly
+Installed entrypoint:
 
 ```bash
-python src/main.py
+mumble
 ```
 
-## Verifying Installation
+Expected behavior:
 
-1. Start the application using one of the methods above
-2. Click the "Start Recording" button
-3. Speak into your microphone
-4. You should see your speech transcribed in the text area
+- The app stays resident in the system tray
+- `Ctrl+Shift+Space` opens the command palette
+- `Ctrl+Alt+Space` starts or stops Quick mode dictation
+- Notes open in the Qt notes editor and restore the last working note automatically
 
-## Troubleshooting
+## Storage locations
 
-### Common Issues
+- Working note state: Qt app data directory
+- Exported note snapshots: `~/Documents/Mumble Notes`
 
-1. **"No module named 'speech_recognition'"**
-   - Ensure you've installed the dependencies: `pip install -r requirements.txt`
+Optional overrides:
 
-2. **"Could not find PyAudio"**
-   - Follow the PyAudio installation instructions above
+- `MUMBLE_DATA_DIR`: overrides the working-state storage root
+- `MUMBLE_NOTES_EXPORT_DIR`: overrides the export directory
+- `MUMBLE_DICTATION_TIMEOUT`: maximum phrase duration in seconds for compatible recognizers
 
-3. **"Could not open microphone"**
-   - Check that your microphone is properly connected
-   - Ensure your microphone has the necessary permissions
+## Verification
 
-4. **"Connection failed" or no transcription appears**
-   - Check your internet connection
-   - Ensure your firewall isn't blocking the application
+Run the focused migration baseline:
 
-## Getting Help
+```bash
+pytest tests/test_mumble.py
+```
 
-If you encounter any issues not covered in this guide, please:
-
-1. Check the [GitHub Issues](https://github.com/yourusername/mumble/issues) for similar problems
-2. Create a new issue with details about your problem 
+The broader legacy pytest suite is still under cleanup and should not be treated as a release signal yet.

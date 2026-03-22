@@ -5,12 +5,13 @@ Measures key performance metrics for both applications
 
 import pytest
 import time
-import psutil
 import os
 import tkinter as tk
 from unittest.mock import patch
-import memory_profiler
 from functools import wraps
+
+psutil = pytest.importorskip("psutil")
+memory_profiler = pytest.importorskip("memory_profiler")
 
 from mumble_notes.app import MumbleNotes
 from mumble_quick.app import MumbleQuick

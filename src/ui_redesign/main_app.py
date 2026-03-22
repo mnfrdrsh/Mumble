@@ -4,24 +4,20 @@ Integrates the command palette, listening interface, and notes editor
 """
 
 import sys
-import os
 import logging
+import time
 import keyboard
-from typing import Optional
 
 from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction
 from PyQt5.QtCore import QObject, QThread, pyqtSignal, QTimer
 from PyQt5.QtGui import QIcon, QPixmap, QColor
 
-# Add parent directories to path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from shared.adaptive_speech import create_adaptive_speech_recognizer
 from shared.logging import setup_logging
 
 from .command_palette import PaletteManager
 from .listening_interface import ListeningManager
 from .notes_editor import NotesManager
+from .quick_dictation import QuickDictationController
 from .styles import COLORS
 
 
@@ -29,56 +25,63 @@ class HotkeyMonitor(QThread):
     """Thread for monitoring global hotkeys"""
     
     palette_requested = pyqtSignal()
-    quick_mode_pressed = pyqtSignal()
-    quick_mode_released = pyqtSignal()
+    quick_mode_toggled = pyqtSignal()
     
     def __init__(self):
         super().__init__()
         self.running = False
-        self.quick_mode_active = False
+        self._hotkey_handles = []
         
     def run(self):
         """Monitor for hotkeys"""
         self.running = True
         try:
             # Register palette hotkey (Ctrl+Shift+Space)
-            keyboard.add_hotkey('ctrl+shift+space', self.on_palette_hotkey, suppress=True)
+            self._hotkey_handles.append(
+                keyboard.add_hotkey('ctrl+shift+space', self.on_palette_hotkey, suppress=True)
+            )
             
-            # Register Quick mode hotkeys (Ctrl+Alt - press and hold)
-            keyboard.add_hotkey('ctrl+alt', self.on_quick_mode_press, suppress=True, trigger_on_release=False)
-            keyboard.add_hotkey('ctrl+alt', self.on_quick_mode_release, suppress=True, trigger_on_release=True)
+            # Register Quick mode hotkey (Ctrl+Alt+Space)
+            self._hotkey_handles.append(
+                keyboard.add_hotkey('ctrl+alt+space', self.on_quick_mode_toggle, suppress=True)
+            )
             
-            # Keep thread alive
+            # Keep thread alive without blocking shutdown on a pending keyboard event.
             while self.running:
-                keyboard.wait()
+                self.msleep(100)
                 
         except Exception as e:
             logging.error(f"Hotkey monitoring error: {e}")
+        finally:
+            self._remove_hotkeys()
     
     def on_palette_hotkey(self):
         """Handle palette hotkey press"""
         self.palette_requested.emit()
     
-    def on_quick_mode_press(self):
-        """Handle Quick mode key press (start of press-and-hold)"""
-        if not self.quick_mode_active:
-            self.quick_mode_active = True
-            self.quick_mode_pressed.emit()
-    
-    def on_quick_mode_release(self):
-        """Handle Quick mode key release (end of press-and-hold)"""
-        if self.quick_mode_active:
-            self.quick_mode_active = False
-            self.quick_mode_released.emit()
+    def on_quick_mode_toggle(self):
+        """Handle Quick mode toggle hotkey."""
+        self.quick_mode_toggled.emit()
     
     def stop(self):
         """Stop monitoring"""
         self.running = False
-        keyboard.unhook_all()
+        self._remove_hotkeys()
+
+    def _remove_hotkeys(self):
+        """Remove only the hotkeys registered by this monitor."""
+        while self._hotkey_handles:
+            handle = self._hotkey_handles.pop()
+            try:
+                keyboard.remove_hotkey(handle)
+            except (KeyError, ValueError):
+                continue
 
 
 class MumbleApp(QObject):
     """Main Mumble application with modern UI"""
+    
+    speech_recognized = pyqtSignal(str)
     
     def __init__(self):
         super().__init__()
@@ -86,15 +89,17 @@ class MumbleApp(QObject):
         
         # State tracking
         self.quick_mode_waiting = False  # Track if Quick mode is waiting for activation
+        self._quick_mode_session = 0
+        self._active_quick_mode_session = None
         
         # Initialize managers
         self.palette_manager = PaletteManager()
         self.listening_manager = ListeningManager()
         self.notes_manager = NotesManager()
         
-        # Speech recognition
+        # Quick dictation
         self.recognizer = None
-        self.setup_speech_recognition()
+        self.setup_quick_dictation()
         
         # System tray
         self.tray_icon = None
@@ -106,19 +111,24 @@ class MumbleApp(QObject):
         
         # Connect signals
         self.connect_signals()
+        self.speech_recognized.connect(self.handle_recognized_text)
         
         # Set initial tray icon state
         self.update_tray_icon_state('idle')
         
         self.logger.info("Modern Mumble application initialized")
     
-    def setup_speech_recognition(self):
-        """Initialize speech recognition"""
+    def setup_quick_dictation(self):
+        """Initialize the deterministic quick dictation controller."""
         try:
-            self.recognizer = create_adaptive_speech_recognizer()
-            self.logger.info("Speech recognition initialized")
+            self.recognizer = QuickDictationController()
+            self.recognizer.transcription_failed.connect(self.on_quick_mode_transcription_failed)
+            self.recognizer.state_changed.connect(self.on_quick_mode_state_changed)
+            self.logger.info(
+                f"Quick dictation initialized ({self.recognizer.backend_name} backend)"
+            )
         except Exception as e:
-            self.logger.error(f"Failed to initialize speech recognition: {e}")
+            self.logger.error(f"Failed to initialize quick dictation: {e}")
     
     def setup_system_tray(self):
         """Setup system tray icon and menu"""
@@ -150,7 +160,7 @@ class MumbleApp(QObject):
         tray_menu.addAction(notes_action)
         
         # Info action for Quick mode
-        quick_info_action = QAction("Quick Mode: Hold Ctrl+Alt to use", self)
+        quick_info_action = QAction("Quick Mode: Ctrl+Alt+Space to start or stop", self)
         quick_info_action.setEnabled(False)  # Make it non-clickable info
         tray_menu.addAction(quick_info_action)
         
@@ -173,19 +183,15 @@ class MumbleApp(QObject):
         """Setup global hotkey monitoring"""
         self.hotkey_monitor = HotkeyMonitor()
         self.hotkey_monitor.palette_requested.connect(self.show_palette)
-        self.hotkey_monitor.quick_mode_pressed.connect(self.start_quick_mode)
-        self.hotkey_monitor.quick_mode_released.connect(self.stop_quick_mode)
+        self.hotkey_monitor.quick_mode_toggled.connect(self.toggle_quick_mode)
         self.hotkey_monitor.start()
-        self.logger.info("Hotkey monitoring started (Ctrl+Shift+Space for palette, Ctrl+Alt press-and-hold for Quick mode)")
+        self.logger.info("Hotkey monitoring started (Ctrl+Shift+Space for palette, Ctrl+Alt+Space to toggle Quick mode)")
     
     def connect_signals(self):
         """Connect all component signals"""
         # Note: Palette signals will be connected when the palette is first shown
         # since the palette is created lazily in PaletteManager.show_palette()
-        
-        # Listening manager signals - these components are created immediately
-        if hasattr(self.listening_manager, 'interface') and self.listening_manager.interface:
-            self.listening_manager.interface.listening_cancelled.connect(self.stop_quick_mode)
+        self.listening_manager.listening_cancelled.connect(self.cancel_quick_mode)
     
     def show_palette(self):
         """Show the command palette"""
@@ -203,76 +209,211 @@ class MumbleApp(QObject):
         """Open the notes editor"""
         if not self.notes_manager.is_editor_open():
             self.notes_manager.open_editor()
+            self._connect_notes_editor_signals()
             self.logger.info("Notes editor opened")
         else:
             # If already open, just focus it
             if self.notes_manager.editor:
+                self._connect_notes_editor_signals()
                 self.notes_manager.editor.raise_()
                 self.notes_manager.editor.activateWindow()
+
+    def _connect_notes_editor_signals(self):
+        """Connect per-editor signals for the active notes window."""
+        editor = self.notes_manager.editor
+        if not editor or getattr(editor, "_launcher_signal_connected", False):
+            return
+
+        editor.launcher_requested.connect(self.show_palette)
+        editor._launcher_signal_connected = True
+
+    def toggle_quick_mode(self):
+        """Toggle Quick mode on or off."""
+        if self.listening_manager.is_active():
+            self.finish_quick_mode()
+        else:
+            self.start_quick_mode()
     
     def start_quick_mode(self):
         """Start Quick Mode (speech-to-text)"""
-        if not self.listening_manager.is_active():
-            self.listening_manager.start_listening()
-            
-            # Update tray icon to listening state
-            self.update_tray_icon_state('listening')
-            
-            # Start speech recognition
-            if self.recognizer:
-                self.recognizer.start_listening(self.on_speech_recognized)
-            
-            self.logger.info("Quick mode started")
-    
+        if self.listening_manager.is_active():
+            return
+
+        if not self.recognizer or not self.recognizer.is_available:
+            self.logger.warning("Quick mode requested without an available dictation backend")
+            self.show_notification(
+                "Quick Dictation Unavailable",
+                "Install the sounddevice package to use Quick mode.",
+            )
+            return
+
+        if self.recognizer.is_busy:
+            self.logger.info("Quick mode requested while dictation is still busy")
+            return
+
+        self._quick_mode_session += 1
+        session_id = self._quick_mode_session
+        self._active_quick_mode_session = session_id
+
+        self.listening_manager.start_listening()
+
+        # Update tray icon to listening state
+        self.update_tray_icon_state('listening')
+
+        try:
+            self.recognizer.start_listening(
+                lambda text, session_id=session_id: self.on_speech_recognized(text, session_id)
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to start quick dictation: {e}")
+            self.cancel_quick_mode()
+            return
+
+        self.logger.info("Quick mode started")
+
+    def finish_quick_mode(self):
+        """Stop recording and start transcribing the captured audio."""
+        was_active = self.listening_manager.is_active()
+        recognizer_was_listening = bool(self.recognizer and self.recognizer.is_listening)
+
+        if was_active:
+            self.listening_manager.stop_listening()
+
+        if recognizer_was_listening:
+            self.recognizer.stop_listening()
+
+        if was_active or recognizer_was_listening:
+            self.update_tray_icon_state('waiting')
+            self.logger.info("Quick mode recording stopped; waiting for transcription")
+
     def stop_quick_mode(self):
-        """Stop Quick Mode"""
+        """Compatibility wrapper for finishing the current quick dictation session."""
+        self.finish_quick_mode()
+
+    def cancel_quick_mode(self):
+        """Cancel the current quick dictation session without transcribing."""
+        self._active_quick_mode_session = None
+        was_active = self.listening_manager.is_active()
+        recognizer_was_listening = bool(self.recognizer and self.recognizer.is_listening)
+
+        if was_active:
+            self.listening_manager.stop_listening()
+
+        if recognizer_was_listening and hasattr(self.recognizer, "cancel_listening"):
+            self.recognizer.cancel_listening()
+
+        if was_active or recognizer_was_listening:
+            self.update_tray_icon_state('idle')
+            self.logger.info("Quick mode cancelled")
+
+    def on_speech_recognized(self, text: str, session_id=None):
+        """Handle recognized speech"""
+        if not text:
+            return
+
+        if session_id is not None and session_id != self._active_quick_mode_session:
+            self.logger.info("Ignoring stale Quick Mode transcription from an inactive session")
+            return
+
+        # Invalidate the session before handing the text back to the UI thread so
+        # duplicate backend callbacks cannot insert the same result twice.
+        if session_id is not None:
+            self._active_quick_mode_session = None
+
+        self.speech_recognized.emit(text)
+
+    def handle_recognized_text(self, text: str):
+        """Handle recognized speech on the Qt main thread."""
+        self.logger.info(f"Speech recognized: {text}")
+
         if self.listening_manager.is_active():
             self.listening_manager.stop_listening()
-            
-            # Stop speech recognition
-            if self.recognizer:
-                self.recognizer.stop_listening()
-            
-            # Update tray icon back to idle state
-            self.update_tray_icon_state('idle')
-            
-            self.logger.info("Quick mode stopped")
-    
-    def on_speech_recognized(self, text: str):
-        """Handle recognized speech"""
-        if text:
-            self.logger.info(f"Speech recognized: {text}")
-            
-            # Stop listening
-            self.stop_quick_mode()
-            
-            # Insert text into notes editor or active application
-            if self.notes_manager.is_editor_open():
-                self.notes_manager.append_text(text)
-            else:
-                # Insert into active application
-                self.insert_text_to_active_app(text)
+        self._active_quick_mode_session = None
+        self.update_tray_icon_state('idle')
+
+        # Insert text into notes editor or active application
+        if self.notes_manager.is_editor_open():
+            self.notes_manager.append_text(text)
+            self._connect_notes_editor_signals()
+        else:
+            # Insert into active application
+            self.insert_text_to_active_app(text)
     
     def insert_text_to_active_app(self, text: str):
         """Insert text into the currently active application"""
         try:
-            import pyperclip
-            import pyautogui
-            
-            # Copy text to clipboard and paste
-            pyperclip.copy(text)
-            pyautogui.hotkey('ctrl', 'v')
+            previous_clipboard = self._get_clipboard_text()
+            self._set_clipboard_text(text)
+
+            # Give the OS clipboard a moment to propagate before pasting.
+            time.sleep(0.05)
+            self._paste_clipboard_to_active_app()
+            self._schedule_clipboard_restore(previous_clipboard)
             self.logger.info("Text inserted into active application")
             
         except Exception as e:
             self.logger.error(f"Failed to insert text: {e}")
             # Fallback: open notes editor with the text
             self.notes_manager.open_editor(text)
+            self._connect_notes_editor_signals()
+
+    def _get_clipboard_text(self) -> str:
+        """Read the current clipboard contents."""
+        import pyperclip
+
+        return pyperclip.paste()
+
+    def _set_clipboard_text(self, text: str):
+        """Write text to the clipboard."""
+        import pyperclip
+
+        pyperclip.copy(text)
+
+    def _paste_clipboard_to_active_app(self):
+        """Send the OS paste hotkey to the active application."""
+        import pyautogui
+
+        pyautogui.hotkey('ctrl', 'v')
+
+    def _schedule_clipboard_restore(self, previous_clipboard: str):
+        """Restore the previous clipboard contents after the paste completes."""
+        QTimer.singleShot(
+            150,
+            lambda previous_clipboard=previous_clipboard: self._restore_clipboard_text(previous_clipboard),
+        )
+
+    def _restore_clipboard_text(self, previous_clipboard: str):
+        """Best-effort clipboard restoration after active-app paste."""
+        try:
+            self._set_clipboard_text(previous_clipboard)
+        except Exception as e:
+            self.logger.warning(f"Failed to restore clipboard after paste: {e}")
     
     def on_tray_activated(self, reason):
         """Handle system tray icon activation"""
         if reason == QSystemTrayIcon.DoubleClick:
             self.show_palette()
+
+    def on_quick_mode_transcription_failed(self, message: str):
+        """Handle a failed quick dictation transcription."""
+        self.logger.warning(f"Quick mode transcription failed: {message}")
+        self._active_quick_mode_session = None
+        self.update_tray_icon_state('idle')
+        self.show_notification("Quick Dictation", message)
+
+    def on_quick_mode_state_changed(self, state: str):
+        """Keep tray state aligned with the dictation controller."""
+        if state == "recording":
+            self.update_tray_icon_state('listening')
+        elif state == "transcribing":
+            self.update_tray_icon_state('waiting')
+        elif state == "idle" and not self.listening_manager.is_active():
+            self.update_tray_icon_state('idle')
+
+    def show_notification(self, title: str, message: str, duration_ms: int = 3000):
+        """Best-effort desktop notification through the tray icon."""
+        if self.tray_icon:
+            self.tray_icon.showMessage(title, message, QSystemTrayIcon.Information, duration_ms)
     
     def exit_application(self):
         """Exit the application"""
@@ -312,7 +453,7 @@ class MumbleApp(QObject):
         if state == 'idle':
             self.tray_icon.setToolTip("Mumble - Ready")
         elif state == 'waiting':
-            self.tray_icon.setToolTip("Mumble - Quick Mode Waiting (Press Ctrl+Alt)")
+            self.tray_icon.setToolTip("Mumble - Transcribing quick dictation...")
         elif state == 'listening':
             self.tray_icon.setToolTip("Mumble - Listening...")
 
@@ -344,7 +485,7 @@ def main():
         if mumble_app.tray_icon:
             mumble_app.tray_icon.showMessage(
                 "Mumble Started",
-                "Ctrl+Shift+Space for command palette • Hold Ctrl+Alt for Quick mode",
+                "Ctrl+Shift+Space for command palette | Ctrl+Alt+Space for Quick mode",
                 QSystemTrayIcon.Information,
                 4000
             )

@@ -16,7 +16,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared.adaptive_speech import create_adaptive_speech_recognizer
 from shared.logging import setup_logging
-from ui.pill_bar import WaveformBar
+from .ui.pill_bar import WaveformBar
 
 class MumbleQuick:
     """Main application class for Mumble Quick"""

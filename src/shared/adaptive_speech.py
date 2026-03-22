@@ -11,10 +11,10 @@ import logging
 from typing import Optional, Callable, List, Dict, Any
 
 # Import the new recognizer classes and the AbstractSpeechRecognizer interface
-from src.shared.pyaudio_recognizer import PyAudioRecognizer
-from src.shared.sounddevice_recognizer import SoundDeviceRecognizer
-from src.shared.cloud_speech import WebAPIRecognizer, WindowsSpeechRecognizer, KeyboardInputRecognizer
-from src.shared.recognizer_interface import AbstractSpeechRecognizer # For type hinting
+from .pyaudio_recognizer import PyAudioRecognizer
+from .sounddevice_recognizer import SoundDeviceRecognizer
+from .cloud_speech import WebAPIRecognizer, WindowsSpeechRecognizer, KeyboardInputRecognizer
+from .recognizer_interface import AbstractSpeechRecognizer # For type hinting
 
 class AdaptiveSpeechRecognizer:
     """
